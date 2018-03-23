@@ -74,7 +74,7 @@ class WC_Pandapay_Payment_Request {
 
 		wp_enqueue_script( 'pandapay', 'https://js.pandapay.com/v2/', '', '1.0', true );
 		wp_enqueue_script( 'google-payment-request-shim', 'https://storage.googleapis.com/prshim/v1/payment-shim.js', '', '1.0', false );
-		wp_enqueue_script( 'wc-pandapay-payment-request', plugins_url( 'assets/js/payment-request' . $suffix . '.js', WC_STRIPE_MAIN_FILE ), array( 'jquery', 'pandapay' ), WC_STRIPE_VERSION, true );
+		wp_enqueue_script( 'wc-pandapay-payment-request', plugins_url( 'assets/js/payment-request' . $suffix . '.js', WC_STRIPE_MAIN_FILE ), array( 'jquery', 'pandapay' ), WC_PANDAPAY_VERSION, true );
 
 		wp_localize_script(
 			'wc-pandapay-payment-request',

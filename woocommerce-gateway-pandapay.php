@@ -36,12 +36,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Required minimums and constants
  */
-define( 'WC_STRIPE_VERSION', '3.2.3' );
-define( 'WC_STRIPE_MIN_PHP_VER', '5.6.0' );
-define( 'WC_STRIPE_MIN_WC_VER', '2.5.0' );
-define( 'WC_STRIPE_MAIN_FILE', __FILE__ );
-define( 'WC_STRIPE_PLUGIN_URL', untrailingslashit( plugins_url( basename( plugin_dir_path( __FILE__ ) ), basename( __FILE__ ) ) ) );
-define( 'WC_STRIPE_PLUGIN_PATH', untrailingslashit( plugin_dir_path( __FILE__ ) ) );
+define( 'WC_PANDAPAY_VERSION', '3.2.3' );
+define( 'WC_PANDAPAY_MIN_PHP_VER', '5.6.0' );
+define( 'WC_PANDAPAY_MIN_WC_VER', '2.5.0' );
+define( 'WC_PANDAPAY_MAIN_FILE', __FILE__ );
+define( 'WC_PANDAPAY_PLUGIN_URL', untrailingslashit( plugins_url( basename( plugin_dir_path( __FILE__ ) ), basename( __FILE__ ) ) ) );
+define( 'WC_PANDAPAY_PLUGIN_PATH', untrailingslashit( plugin_dir_path( __FILE__ ) ) );
 
 if ( ! class_exists( 'WC_Pandapay' ) ) :
 
@@ -161,7 +161,7 @@ if ( ! class_exists( 'WC_Pandapay' ) ) :
 		 * or the environment changes after activation. Also handles upgrade routines.
 		 */
 		public function check_environment() {
-			if ( ! defined( 'IFRAME_REQUEST' ) && ( WC_STRIPE_VERSION !== get_option( 'wc_pandapay_version' ) ) ) {
+			if ( ! defined( 'IFRAME_REQUEST' ) && ( WC_PANDAPAY_VERSION !== get_option( 'wc_pandapay_version' ) ) ) {
 				$this->install();
 
 				do_action( 'woocommerce_pandapay_updated' );
@@ -196,7 +196,7 @@ if ( ! class_exists( 'WC_Pandapay' ) ) :
 		 */
 		private static function _update_plugin_version() {
 			delete_option( 'wc_pandapay_version' );
-			update_option( 'wc_pandapay_version', WC_STRIPE_VERSION );
+			update_option( 'wc_pandapay_version', WC_PANDAPAY_VERSION );
 
 			return true;
 		}
@@ -228,8 +228,8 @@ if ( ! class_exists( 'WC_Pandapay' ) ) :
 		 * @version 3.1.0
 		 */
 		public function install() {
-			if ( ! defined( 'WC_STRIPE_INSTALLING' ) ) {
-				define( 'WC_STRIPE_INSTALLING', true );
+			if ( ! defined( 'WC_PANDAPAY_INSTALLING' ) ) {
+				define( 'WC_PANDAPAY_INSTALLING', true );
 			}
 
 			$this->_update_plugin_version();
@@ -240,20 +240,20 @@ if ( ! class_exists( 'WC_Pandapay' ) ) :
 		 * found or false if the environment has no problems.
 		 */
 		static function get_environment_warning() {
-			if ( version_compare( phpversion(), WC_STRIPE_MIN_PHP_VER, '<' ) ) {
+			if ( version_compare( phpversion(), WC_PANDAPAY_MIN_PHP_VER, '<' ) ) {
 				$message = __( 'WooCommerce Panda Pay - The minimum PHP version required for this plugin is %1$s. You are running %2$s.', 'woocommerce-gateway-pandapay' );
 
-				return sprintf( $message, WC_STRIPE_MIN_PHP_VER, phpversion() );
+				return sprintf( $message, WC_PANDAPAY_MIN_PHP_VER, phpversion() );
 			}
 
 			if ( ! defined( 'WC_VERSION' ) ) {
 				return __( 'WooCommerce Panda Pay requires WooCommerce to be activated to work.', 'woocommerce-gateway-pandapay' );
 			}
 
-			if ( version_compare( WC_VERSION, WC_STRIPE_MIN_WC_VER, '<' ) ) {
+			if ( version_compare( WC_VERSION, WC_PANDAPAY_MIN_WC_VER, '<' ) ) {
 				$message = __( 'WooCommerce Panda Pay - The minimum WooCommerce version required for this plugin is %1$s. You are running %2$s.', 'woocommerce-gateway-pandapay' );
 
-				return sprintf( $message, WC_STRIPE_MIN_WC_VER, WC_VERSION );
+				return sprintf( $message, WC_PANDAPAY_MIN_WC_VER, WC_VERSION );
 			}
 
 			if ( ! function_exists( 'curl_init' ) ) {

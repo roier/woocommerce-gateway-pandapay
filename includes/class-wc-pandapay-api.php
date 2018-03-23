@@ -100,7 +100,8 @@ class WC_Pandapay_API {
 		$options = get_option( 'woocommerce_pandapay_settings' );
 
 		if ( 'yes' === $options['logging'] ) {
-			WC_Pandapay::log( $message );
+			error_log( __FILE__ );
+			error_log( $message );
 		}
 	}
 }

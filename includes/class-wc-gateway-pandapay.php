@@ -74,27 +74,6 @@ class WC_Gateway_Pandapay extends WC_Payment_Gateway_CC {
 	public $bitcoin;
 
 	/**
-	 * Do we accept Apple Pay?
-	 *
-	 * @var bool
-	 */
-	public $apple_pay;
-
-	/**
-	 * Apple Pay Domain Set.
-	 *
-	 * @var bool
-	 */
-	public $apple_pay_domain_set;
-
-	/**
-	 * Apple Pay button style.
-	 *
-	 * @var bool
-	 */
-	public $apple_pay_button;
-
-	/**
 	 * Is test mode active?
 	 *
 	 * @var bool
@@ -107,13 +86,6 @@ class WC_Gateway_Pandapay extends WC_Payment_Gateway_CC {
 	 * @var bool
 	 */
 	public $logging;
-
-	/**
-	 * Stores Apple Pay domain verification issues.
-	 *
-	 * @var string
-	 */
-	public $apple_pay_verify_notice;
 
 	/**
 	 * Constructor
@@ -162,11 +134,7 @@ class WC_Gateway_Pandapay extends WC_Payment_Gateway_CC {
 		$this->secret_key              = $this->testmode ? $this->get_option( 'test_secret_key' ) : $this->get_option( 'secret_key' );
 		$this->publishable_key         = $this->testmode ? $this->get_option( 'test_publishable_key' ) : $this->get_option( 'publishable_key' );
 		$this->bitcoin                 = 'USD' === strtoupper( get_woocommerce_currency() ) && 'yes' === $this->get_option( 'pandapay_bitcoin' );
-		$this->apple_pay               = 'yes' === $this->get_option( 'apple_pay', 'yes' );
-		$this->apple_pay_domain_set    = 'yes' === $this->get_option( 'apple_pay_domain_set', 'no' );
-		$this->apple_pay_button        = $this->get_option( 'apple_pay_button', 'black' );
 		$this->logging                 = 'yes' === $this->get_option( 'logging' );
-		$this->apple_pay_verify_notice = '';
 
 		if ( $this->pandapay_checkout ) {
 			$this->order_button_text = __( 'Continue to payment', 'woocommerce-gateway-pandapay' );
@@ -178,8 +146,6 @@ class WC_Gateway_Pandapay extends WC_Payment_Gateway_CC {
 		}
 
 		WC_Pandapay_API::set_secret_key( $this->secret_key );
-
-		$this->init_apple_pay();
 
 		// Hooks.
 		add_action( 'wp_enqueue_scripts', array( $this, 'payment_scripts' ) );
@@ -209,7 +175,7 @@ class WC_Gateway_Pandapay extends WC_Payment_Gateway_CC {
 		}
 
 		if ( $this->bitcoin && $this->pandapay_checkout ) {
-			$icon .= '<img src="' . WC_HTTPS::force_https_url( plugins_url( '/assets/images/bitcoin' . $ext, WC_STRIPE_MAIN_FILE ) ) . '" alt="Bitcoin" width="24" ' . $style . ' />';
+			$icon .= '<img src="' . WC_HTTPS::force_https_url( plugins_url( '/assets/images/bitcoin' . $ext, WC_PANDAPAY_MAIN_FILE ) ) . '" alt="Bitcoin" width="24" ' . $style . ' />';
 		}
 
 		return apply_filters( 'woocommerce_gateway_icon', $icon, $this->id );
@@ -254,142 +220,11 @@ class WC_Gateway_Pandapay extends WC_Payment_Gateway_CC {
 	}
 
 	/**
-	 * Initializes Apple Pay process on settings page.
-	 *
-	 * @since 3.1.0
-	 * @version 3.1.0
-	 */
-	public function init_apple_pay() {
-		if (
-			is_admin() &&
-			isset( $_GET['page'] ) && 'wc-settings' === $_GET['page'] &&
-			isset( $_GET['tab'] ) && 'checkout' === $_GET['tab'] &&
-			isset( $_GET['section'] ) && 'pandapay' === $_GET['section'] &&
-			$this->apple_pay
-		) {
-			$this->process_apple_pay_verification();
-		}
-	}
-
-	/**
-	 * Registers the domain with Panda Pay/Apple Pay
-	 *
-	 * @since 3.1.0
-	 * @version 3.1.0
-	 * @param string $secret_key
-	 */
-	private function register_apple_pay_domain( $secret_key = '' ) {
-		if ( empty( $secret_key ) ) {
-			throw new Exception( __( 'Unable to verify domain - missing secret key.', 'woocommerce-gateway-pandapay' ) );
-		}
-
-		$endpoint = 'https://api.stripe.com/v1/apple_pay/domains';
-
-		$data = array(
-			'domain_name' => $_SERVER['HTTP_HOST'],
-		);
-
-		$headers = array(
-			'User-Agent'    => 'WooCommerce Panda Pay Apple Pay',
-			'Authorization' => 'Bearer ' . $secret_key,
-		);
-
-		$response = wp_remote_post( $endpoint, array(
-			'headers' => $headers,
-			'body'    => http_build_query( $data ),
-		) );
-
-		if ( is_wp_error( $response ) ) {
-			throw new Exception( sprintf( __( 'Unable to verify domain - %s', 'woocommerce-gateway-pandapay' ), $response->get_error_message() ) );
-		}
-
-		if ( 200 !== $response['response']['code'] ) {
-			$parsed_response = json_decode( $response['body'] );
-
-			$this->apple_pay_verify_notice = $parsed_response->error->message;
-
-			throw new Exception( sprintf( __( 'Unable to verify domain - %s', 'woocommerce-gateway-pandapay' ), $parsed_response->error->message ) );
-		}
-	}
-
-	/**
-	 * Processes the Apple Pay domain verification.
-	 *
-	 * @since 3.1.0
-	 * @version 3.1.0
-	 */
-	public function process_apple_pay_verification() {
-		$gateway_settings = get_option( 'woocommerce_pandapay_settings', '' );
-
-		try {
-			$path     = untrailingslashit( preg_replace( "!${_SERVER['SCRIPT_NAME']}$!", '', $_SERVER['SCRIPT_FILENAME'] ) );
-			$dir      = '.well-known';
-			$file     = 'apple-developer-merchantid-domain-association';
-			$fullpath = $path . '/' . $dir . '/' . $file;
-
-			if ( ! empty( $gateway_settings['apple_pay_domain_set'] ) && 'yes' === $gateway_settings['apple_pay_domain_set'] && file_exists( $fullpath ) ) {
-				return;
-			}
-
-			if ( ! file_exists( $path . '/' . $dir ) ) {
-				if ( ! @mkdir( $path . '/' . $dir, 0755 ) ) {
-					throw new Exception( __( 'Unable to create domain association folder to domain root.', 'woocommerce-gateway-pandapay' ) );
-				}
-			}
-
-			if ( ! file_exists( $fullpath ) ) {
-				if ( ! @copy( WC_STRIPE_PLUGIN_PATH . '/' . $file, $fullpath ) ) {
-					throw new Exception( __( 'Unable to copy domain association file to domain root.', 'woocommerce-gateway-pandapay' ) );
-				}
-			}
-
-			// At this point then the domain association folder and file should be available.
-			// Proceed to verify/and or verify again.
-			$this->register_apple_pay_domain( $this->secret_key );
-
-			// No errors to this point, verification success!
-			$gateway_settings['apple_pay_domain_set'] = 'yes';
-			$this->apple_pay_domain_set = true;
-
-			update_option( 'woocommerce_pandapay_settings', $gateway_settings );
-
-			$this->log( __( 'Your domain has been verified with Apple Pay!', 'woocommerce-gateway-pandapay' ) );
-
-		} catch ( Exception $e ) {
-			$gateway_settings['apple_pay_domain_set'] = 'no';
-
-			update_option( 'woocommerce_pandapay_settings', $gateway_settings );
-
-			$this->log( sprintf( __( 'Error: %s', 'woocommerce-gateway-pandapay' ), $e->getMessage() ) );
-		}
-	}
-
-	/**
 	 * Check if SSL is enabled and notify the user
 	 */
 	public function admin_notices() {
 		if ( 'no' === $this->enabled ) {
 			return;
-		}
-
-		if ( $this->apple_pay && ! empty( $this->apple_pay_verify_notice ) ) {
-			$allowed_html = array(
-				'a' => array(
-					'href' => array(),
-					'title' => array(),
-				),
-			);
-
-			echo '<div class="error stripe-apple-pay-message"><p>' . wp_kses( make_clickable( $this->apple_pay_verify_notice ), $allowed_html ) . '</p></div>';
-		}
-
-		/**
-		 * Apple pay is enabled by default and domain verification initializes
-		 * when setting screen is displayed. So if domain verification is not set,
-		 * something went wrong so lets notify user.
-		 */
-		if ( ! empty( $this->secret_key ) && $this->apple_pay && ! $this->apple_pay_domain_set ) {
-			echo '<div class="error stripe-apple-pay-message"><p>' . sprintf( __( 'Apple Pay domain verification failed. Please check the %1$slog%2$s to see the issue. (Logging must be enabled to see recorded logs)', 'woocommerce-gateway-pandapay' ), '<a href="' . admin_url( 'admin.php?page=wc-status&tab=logs' ) . '">', '</a>' ) . '</p></div>';
 		}
 
 		// Show message if enabled and FORCE SSL is disabled and WordpressHTTPS plugin is not detected.
@@ -450,7 +285,7 @@ class WC_Gateway_Pandapay extends WC_Payment_Gateway_CC {
 		}
 
 		echo '<div
-			id="stripe-payment-data"
+			id="pandapay-payment-data"
 			data-panel-label="' . esc_attr( $pay_button_text ) . '"
 			data-description=""
 			data-email="' . esc_attr( $user_email ) . '"
@@ -458,7 +293,6 @@ class WC_Gateway_Pandapay extends WC_Payment_Gateway_CC {
 			data-name="' . esc_attr( $this->statement_descriptor ) . '"
 			data-currency="' . esc_attr( strtolower( get_woocommerce_currency() ) ) . '"
 			data-image="' . esc_attr( $this->pandapay_checkout_image ) . '"
-			data-bitcoin="' . esc_attr( $this->bitcoin ? 'true' : 'false' ) . '"
 			data-locale="' . esc_attr( $this->pandapay_checkout_locale ? $this->pandapay_checkout_locale : 'en' ) . '"
 			data-allow-remember-me="' . esc_attr( $this->saved_cards ? 'true' : 'false' ) . '">';
 
@@ -519,7 +353,7 @@ class WC_Gateway_Pandapay extends WC_Payment_Gateway_CC {
 
 		$suffix = defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ? '' : '.min';
 
-		wp_enqueue_script( 'woocommerce_pandapay_admin', plugins_url( 'assets/js/stripe-admin' . $suffix . '.js', WC_STRIPE_MAIN_FILE ), array(), WC_STRIPE_VERSION, true );
+		wp_enqueue_script( 'woocommerce_pandapay_admin', plugins_url( 'assets/js/stripe-admin' . $suffix . '.js', WC_PANDAPAY_MAIN_FILE ), array(), WC_PANDAPAY_VERSION, true );
 
 		$pandapay_admin_params = array(
 			'localized_messages' => array(
@@ -529,9 +363,9 @@ class WC_Gateway_Pandapay extends WC_Payment_Gateway_CC {
 				'missing_secret_key'     => __( 'Missing Secret Key. Please set the secret key field above and re-try.', 'woocommerce-gateway-pandapay' ),
 			),
 			'ajaxurl'            => admin_url( 'admin-ajax.php' ),
-			'nonce'              => array(
-				'apple_pay_domain_nonce' => wp_create_nonce( '_wc_pandapay_apple_pay_domain_nonce' ),
-			),
+			// 'nonce'              => array(
+			// 	'apple_pay_domain_nonce' => wp_create_nonce( '_wc_pandapay_apple_pay_domain_nonce' ),
+			// ),
 		);
 
 		wp_localize_script( 'woocommerce_pandapay_admin', 'wc_pandapay_admin_params', apply_filters( 'wc_pandapay_admin_params', $pandapay_admin_params ) );
@@ -552,11 +386,12 @@ class WC_Gateway_Pandapay extends WC_Payment_Gateway_CC {
 		$suffix = defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ? '' : '.min';
 
 		if ( $this->pandapay_checkout ) {
-			wp_enqueue_script( 'pandapay_checkout', 'https://checkout.stripe.com/checkout.js', '', WC_STRIPE_VERSION, true );
-			wp_enqueue_script( 'woocommerce_pandapay', plugins_url( 'assets/js/stripe-checkout' . $suffix . '.js', WC_STRIPE_MAIN_FILE ), array( 'pandapay_checkout' ), WC_STRIPE_VERSION, true );
+			wp_enqueue_script( 'pandapay_checkout', 'https://checkout.stripe.com/checkout.js', '', WC_PANDAPAY_VERSION, true );
+			wp_enqueue_script( 'woocommerce_pandapay', plugins_url( 'assets/js/stripe-checkout' . $suffix . '.js', WC_PANDAPAY_MAIN_FILE ), array( 'pandapay_checkout' ), WC_PANDAPAY_VERSION, true );
 		} else {
-			wp_enqueue_script( 'pandapay', 'https://js.stripe.com/v2/', '', '2.0', true );
-			wp_enqueue_script( 'woocommerce_pandapay', plugins_url( 'assets/js/stripe' . $suffix . '.js', WC_STRIPE_MAIN_FILE ), array( 'jquery-payment', 'pandapay' ), WC_STRIPE_VERSION, true );
+			// wp_enqueue_script( 'pandapay', 'https://js.stripe.com/v2/', '', '2.0', true );
+			wp_enqueue_script( 'pandapay', 'https://d2t45z63lq9zlh.cloudfront.net/panda-v0.0.5.min.js', '', '', true );
+			wp_enqueue_script( 'woocommerce_pandapay', plugins_url( 'assets/js/pandapay.js', WC_PANDAPAY_MAIN_FILE ), array( 'jquery-payment', 'pandapay' ), WC_PANDAPAY_VERSION, true );
 		}
 
 		$pandapay_params = array(
@@ -740,8 +575,11 @@ class WC_Gateway_Pandapay extends WC_Payment_Gateway_CC {
 	 */
 	public function process_payment( $order_id, $retry = true, $force_customer = false ) {
 		try {
+			$this->log( sprintf( __( 'Order ID: %s', 'woocommerce-gateway-pandapay' ), $order_id ) );
 			$order  = wc_get_order( $order_id );
+			$this->log( sprintf( __( 'Current user id: %s', 'woocommerce-gateway-pandapay' ), get_current_user_id() ) );
 			$source = $this->get_source( get_current_user_id(), $force_customer );
+			$this->log( sprintf( __( 'Source: %s', 'woocommerce-gateway-pandapay' ), json_encode($source) ) );
 
 			if ( empty( $source->source ) && empty( $source->customer ) ) {
 				$error_msg = __( 'Please enter your card details to make a payment.', 'woocommerce-gateway-pandapay' );
@@ -991,7 +829,8 @@ class WC_Gateway_Pandapay extends WC_Payment_Gateway_CC {
 	 */
 	public function log( $message ) {
 		if ( $this->logging ) {
-			WC_Pandapay::log( $message );
+			error_log( __FILE__ );
+			error_log( $message );
 		}
 	}
 }
