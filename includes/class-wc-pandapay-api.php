@@ -13,7 +13,7 @@ class WC_Pandapay_API {
 	/**
 	 * Panda Pay API Endpoint
 	 */
-	const ENDPOINT = 'https://api.stripe.com/v1/';
+	const ENDPOINT = 'https://api.pandapay.io/v1/';
 
 	/**
 	 * Secret API Key.
@@ -51,7 +51,7 @@ class WC_Pandapay_API {
 	 * @param string $api
 	 * @return array|WP_Error
 	 */
-	public static function request( $request, $api = 'charges', $method = 'POST' ) {
+	public static function request( $request, $api = 'donations', $method = 'POST' ) {
 		self::log( "{$api} request: " . print_r( $request, true ) );
 
 		$response = wp_safe_remote_post(
@@ -59,8 +59,7 @@ class WC_Pandapay_API {
 			array(
 				'method'        => $method,
 				'headers'       => array(
-					'Authorization'  => 'Basic ' . base64_encode( self::get_secret_key() . ':' ),
-					'Panda Pay-Version' => '2016-03-07',
+					'Authorization'  => 'Basic ' . base64_encode( self::get_secret_key() . ':' )
 				),
 				'body'       => apply_filters( 'woocommerce_pandapay_request_body', $request, $api ),
 				'timeout'    => 70,
@@ -100,7 +99,7 @@ class WC_Pandapay_API {
 		$options = get_option( 'woocommerce_pandapay_settings' );
 
 		if ( 'yes' === $options['logging'] ) {
-			error_log( __FILE__ );
+			error_log( 'class-wc-pandapay-api.php' );
 			error_log( $message );
 		}
 	}

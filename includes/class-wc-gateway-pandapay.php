@@ -133,6 +133,7 @@ class WC_Gateway_Pandapay extends WC_Payment_Gateway_CC {
 		$this->saved_cards             = 'yes' === $this->get_option( 'saved_cards' );
 		$this->secret_key              = $this->testmode ? $this->get_option( 'test_secret_key' ) : $this->get_option( 'secret_key' );
 		$this->publishable_key         = $this->testmode ? $this->get_option( 'test_publishable_key' ) : $this->get_option( 'publishable_key' );
+		$this->destination_ein				 = $this->get_option( 'destination_ein' );
 		$this->bitcoin                 = 'USD' === strtoupper( get_woocommerce_currency() ) && 'yes' === $this->get_option( 'pandapay_bitcoin' );
 		$this->logging                 = 'yes' === $this->get_option( 'logging' );
 
@@ -141,7 +142,7 @@ class WC_Gateway_Pandapay extends WC_Payment_Gateway_CC {
 		}
 
 		if ( $this->testmode ) {
-			$this->description .= ' ' . sprintf( __( 'TEST MODE ENABLED. In test mode, you can use the card number 4242424242424242 with any CVC and a valid expiration date or check the documentation "<a href="%s">Testing Panda Pay</a>" for more card numbers.', 'woocommerce-gateway-pandapay' ), 'https://stripe.com/docs/testing' );
+			$this->description .= ' ' . sprintf( __( 'TEST MODE ENABLED. In test mode, you can use the card number 4111111111111111 with any CVC and a valid expiration date or check the documentation "<a href="%s">Testing Panda Pay</a>" for more card numbers.', 'woocommerce-gateway-pandapay' ), 'https://stripe.com/docs/testing' );
 			$this->description  = trim( $this->description );
 		}
 
@@ -152,6 +153,16 @@ class WC_Gateway_Pandapay extends WC_Payment_Gateway_CC {
 		add_action( 'admin_enqueue_scripts', array( $this, 'admin_scripts' ) );
 		add_action( 'admin_notices', array( $this, 'admin_notices' ) );
 		add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'process_admin_options' ) );
+		add_action( 'woocommerce_after_order_notes', array( $this, 'panda_token_input' ) );
+	}
+
+	public function panda_token_input( $checkout ) {
+		woocommerce_form_field('panda_source', array(
+			'id'						=> 'token-input',
+      'type'          => 'text',
+			'disabled'			=> 'disabled',
+      'class'         => array('panda-pay-token-input form-row-wide'),
+    ), $checkout->get_value('panda_source'));
 	}
 
 	/**
@@ -385,14 +396,9 @@ class WC_Gateway_Pandapay extends WC_Payment_Gateway_CC {
 
 		$suffix = defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ? '' : '.min';
 
-		if ( $this->pandapay_checkout ) {
-			wp_enqueue_script( 'pandapay_checkout', 'https://checkout.stripe.com/checkout.js', '', WC_PANDAPAY_VERSION, true );
-			wp_enqueue_script( 'woocommerce_pandapay', plugins_url( 'assets/js/stripe-checkout' . $suffix . '.js', WC_PANDAPAY_MAIN_FILE ), array( 'pandapay_checkout' ), WC_PANDAPAY_VERSION, true );
-		} else {
-			// wp_enqueue_script( 'pandapay', 'https://js.stripe.com/v2/', '', '2.0', true );
-			wp_enqueue_script( 'pandapay', 'https://d2t45z63lq9zlh.cloudfront.net/panda-v0.0.5.min.js', '', '', true );
-			wp_enqueue_script( 'woocommerce_pandapay', plugins_url( 'assets/js/pandapay.js', WC_PANDAPAY_MAIN_FILE ), array( 'jquery-payment', 'pandapay' ), WC_PANDAPAY_VERSION, true );
-		}
+		wp_enqueue_script( 'pandapay', $this->get_option('panda_js'), '', '', true );
+		wp_enqueue_script( 'woocommerce_pandapay', plugins_url( 'assets/js/pandapay.js', WC_PANDAPAY_MAIN_FILE ));
+		wp_enqueue_style( 'woocommerce_pandapay', plugins_url( 'assets/css/pandapay.css', WC_PANDAPAY_MAIN_FILE ));
 
 		$pandapay_params = array(
 			'key'                  => $this->publishable_key,
@@ -423,7 +429,10 @@ class WC_Gateway_Pandapay extends WC_Payment_Gateway_CC {
 		$pandapay_params = array_merge( $pandapay_params, $this->get_localized_messages() );
 
 		wp_localize_script( 'woocommerce_pandapay', 'wc_pandapay_params', apply_filters( 'wc_pandapay_params', $pandapay_params ) );
+
 	}
+
+
 
 	/**
 	 * Generate the request for the payment.
@@ -562,6 +571,21 @@ class WC_Gateway_Pandapay extends WC_Payment_Gateway_CC {
 		);
 	}
 
+	public function request_payment( $url, $secret_key, $source, $amount, $billing_email ) {
+		$ch = curl_init();
+		curl_setopt($ch, CURLOPT_URL, $url);
+		curl_setopt($ch, CURLOPT_POST, 1);
+		$post_fields = "amount=".(intval($amount) * 100)."&currency=usd&source=".$source."&receipt_email=".$billing_email."&platform_fee=100&destination_ein=12-3456789";
+		curl_setopt($ch, CURLOPT_USERPWD, $secret_key);
+		curl_setopt($ch, CURLOPT_POSTFIELDS, $post_fields);
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+		$response = json_decode(curl_exec($ch));
+		curl_close($ch);
+		$this->log( sprintf( __( 'request_payment: %s', 'woocommerce-gateway-pandapay' ), json_encode(array($url, $post_fields)) ) );
+		return $response;
+	}
+
 	/**
 	 * Process the payment
 	 *
@@ -575,59 +599,34 @@ class WC_Gateway_Pandapay extends WC_Payment_Gateway_CC {
 	 */
 	public function process_payment( $order_id, $retry = true, $force_customer = false ) {
 		try {
-			$this->log( sprintf( __( 'Order ID: %s', 'woocommerce-gateway-pandapay' ), $order_id ) );
 			$order  = wc_get_order( $order_id );
-			$this->log( sprintf( __( 'Current user id: %s', 'woocommerce-gateway-pandapay' ), get_current_user_id() ) );
-			$source = $this->get_source( get_current_user_id(), $force_customer );
-			$this->log( sprintf( __( 'Source: %s', 'woocommerce-gateway-pandapay' ), json_encode($source) ) );
+			$source = $_POST['panda_source'];
+			$this->log( sprintf( __( 'order: %s', 'woocommerce-gateway-pandapay' ), json_encode($order) ) );
 
-			if ( empty( $source->source ) && empty( $source->customer ) ) {
-				$error_msg = __( 'Please enter your card details to make a payment.', 'woocommerce-gateway-pandapay' );
-				$error_msg .= ' ' . __( 'Developers: Please make sure that you are including jQuery and there are no JavaScript errors on the page.', 'woocommerce-gateway-pandapay' );
-				throw new Exception( $error_msg );
-			}
-
-			// Store source to order meta.
-			$this->save_source( $order, $source );
-
-			// Result from Panda Pay API request.
+			// Result from Stripe API request.
 			$response = null;
 
 			// Handle payment.
 			if ( $order->get_total() > 0 ) {
+				$response = WC_Pandapay_API::request( array(
+					'amount'   				=> $order->get_total() * 100,
+					'source'					=> $source,
+					'currency'				=> get_woocommerce_currency(),
+					'receipt_email' 	=> $_POST['billing_email'],
+					'platform_fee'  	=> '100',
+					'destination_ein' => '12-3456789',
+				), 'donations' );
 
-				if ( $order->get_total() * 100 < WC_Pandapay::get_minimum_amount() ) {
-					throw new Exception( sprintf( __( 'Sorry, the minimum allowed order total is %1$s to use this payment method.', 'woocommerce-gateway-pandapay' ), wc_price( WC_Pandapay::get_minimum_amount() / 100 ) ) );
-				}
+				$this->log( sprintf( __( 'Donation Response: %s', 'woocommerce-gateway-pandapay' ), json_encode($response) ) );
 
-				$this->log( "Info: Begin processing payment for order $order_id for the amount of {$order->get_total()}" );
-
-				// Make the request.
-				$response = WC_Pandapay_API::request( $this->generate_payment_request( $order, $source ) );
-
-				if ( is_wp_error( $response ) ) {
-					// Customer param wrong? The user may have been deleted on stripe's end. Remove customer_id. Can be retried without.
-					if ( 'customer' === $response->get_error_code() && $retry ) {
-						delete_user_meta( get_current_user_id(), '_pandapay_customer_id' );
-						return $this->process_payment( $order_id, false, $force_customer );
-						// Source param wrong? The CARD may have been deleted on stripe's end. Remove token and show message.
-					} elseif ( 'source' === $response->get_error_code() && $source->token_id ) {
-						$token = WC_Payment_Tokens::get( $source->token_id );
-						$token->delete();
-						$message = __( 'This card is no longer available and has been removed.', 'woocommerce-gateway-pandapay' );
-						$order->add_order_note( $message );
-						throw new Exception( $message );
+				if (isset($response->errors)) {
+					$message = '';
+					foreach ($response->errors as $error) {
+						$this->log( sprintf( __( 'Error: %s', 'woocommerce-gateway-pandapay' ), $error->message ) );
+						$message .= __( $error->message, 'woocommerce-gateway-pandapay' );
 					}
-
-					$localized_messages = $this->get_localized_messages();
-
-					$message = isset( $localized_messages[ $response->get_error_code() ] ) ? $localized_messages[ $response->get_error_code() ] : $response->get_error_message();
-
-					$order->add_order_note( $message );
-
 					throw new Exception( $message );
 				}
-
 				// Process valid response.
 				$this->process_response( $response, $order );
 			} else {
@@ -637,7 +636,8 @@ class WC_Gateway_Pandapay extends WC_Payment_Gateway_CC {
 			// Remove cart.
 			WC()->cart->empty_cart();
 
-			do_action( 'wc_gateway_pandapay_process_payment', $response, $order );
+			// remove when ready
+			// do_action( 'wc_gateway_pandapay_process_payment', $response, $order );
 
 			// Return thank you page redirect.
 			return array(
@@ -829,7 +829,7 @@ class WC_Gateway_Pandapay extends WC_Payment_Gateway_CC {
 	 */
 	public function log( $message ) {
 		if ( $this->logging ) {
-			error_log( __FILE__ );
+			error_log( 'class-wc-pandapay-api.php' );
 			error_log( $message );
 		}
 	}

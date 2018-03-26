@@ -454,17 +454,32 @@ if ( ! class_exists( 'WC_Pandapay' ) ) :
 		 * @param  int $order_id
 		 */
 		public function capture_payment( $order_id ) {
+			$this->log( sprintf( __( 'capture_payment order_id: %s', 'woocommerce-gateway-pandapay' ), json_encode($order_id) ) );
+
 			$order = wc_get_order( $order_id );
+			$this->log( sprintf( __( 'capture_payment order: %s', 'woocommerce-gateway-pandapay' ), json_encode($order) ) );
 
 			if ( 'pandapay' === ( version_compare( WC_VERSION, '3.0.0', '<' ) ? $order->payment_method : $order->get_payment_method() ) ) {
 				$charge   = get_post_meta( $order_id, '_pandapay_charge_id', true );
+				$this->log( sprintf( __( 'capture_payment charge: %s', 'woocommerce-gateway-pandapay' ), json_encode($charge) ) );
 				$captured = get_post_meta( $order_id, '_pandapay_charge_captured', true );
+				$this->log( sprintf( __( 'capture_payment captured: %s', 'woocommerce-gateway-pandapay' ), json_encode($captured) ) );
 
 				if ( $charge && 'no' === $captured ) {
+					$this->log( sprintf( __( 'capture_payment order #2: %s', 'woocommerce-gateway-pandapay' ), json_encode($order) ) );
+					$this->log( sprintf( __( 'capture_payment grants order total: %s', 'woocommerce-gateway-pandapay' ), $order->get_total() ) );
 					$result = WC_Pandapay_API::request( array(
 						'amount'   => $order->get_total() * 100,
-						'expand[]' => 'balance_transaction',
-					), 'charges/' . $charge . '/capture' );
+						'destination_ein' => '12-3456789'
+					), 'donations/' . $charge . '/grants' );
+
+					$this->log( sprintf( __( 'capture_payment grants result: %s', 'woocommerce-gateway-pandapay' ), json_encode($result) ) );
+
+					if (isset($result->errors)) {
+						foreach ($result->errors as $error) {
+							$this->log( sprintf( __( 'Error: %s', 'woocommerce-gateway-pandapay' ), $error->message ) );
+						}
+					}
 
 					if ( is_wp_error( $result ) ) {
 						$order->add_order_note( __( 'Unable to capture charge!', 'woocommerce-gateway-pandapay' ) . ' ' . $result->get_error_message() );
@@ -625,6 +640,10 @@ if ( ! class_exists( 'WC_Pandapay' ) ) :
 			}
 
 			self::$log->add( 'woocommerce-gateway-pandapay', $message );
+
+			error_log( 'woocommerce-gateway-pandapay.php' );
+			error_log( $message );
+
 		}
 	}
 
