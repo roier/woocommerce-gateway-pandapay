@@ -29,12 +29,12 @@ var request = function(url, type, headers) {
 }
 
 var checkDestinationEIN = function() {
-  disableEIN();
-  destinationEINDescription.text('Checking...');
   if (destinationEIN.val()) {
     var destination_ein = destinationEIN.val();
     if (destination_ein.match(/\d{2}\-\d{7}/)) {
       if (algoliaApiKey.val() && algoliaApplicationId.val()) {
+        disableEIN();
+        destinationEINDescription.text('Checking...');
         var url = "https://"+algoliaApplicationId.val()+"-dsn.algolia.net/1/indexes/PandaSearch/?query="+destination_ein;
         request(url, 'GET', [
           {name: 'X-Algolia-API-Key', value: algoliaApiKey.val()},
