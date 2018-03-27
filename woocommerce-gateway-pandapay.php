@@ -298,43 +298,6 @@ if ( ! class_exists( 'WC_Pandapay' ) ) :
 		 */
 		public function admin_notices() {
 			$show_request_api_notice = get_option( 'wc_pandapay_show_request_api_notice' );
-			$show_apple_pay_notice   = get_option( 'wc_pandapay_show_apple_pay_notice' );
-
-			if ( empty( $show_apple_pay_notice ) ) {
-				// @TODO remove this notice in the future.
-				?>
-				<div class="notice notice-warning wc-pandapay-apple-pay-notice is-dismissible"><p><?php echo sprintf( esc_html__( 'New Feature! Panda Pay now supports %s. Your customers can now purchase your products even faster. Apple Pay has been enabled by default.', 'woocommerce-gateway-pandapay' ), '<a href="https://woocommerce.com/apple-pay/">Apple Pay</a>'); ?></p></div>
-
-				<script type="application/javascript">
-					jQuery( '.wc-pandapay-apple-pay-notice' ).on( 'click', '.notice-dismiss', function() {
-						var data = {
-							action: 'pandapay_dismiss_apple_pay_notice'
-						};
-
-						jQuery.post( '<?php echo admin_url( 'admin-ajax.php' ); ?>', data );
-					});
-				</script>
-
-				<?php
-			}
-
-			if ( empty( $show_request_api_notice ) ) {
-				// @TODO remove this notice in the future.
-				?>
-				<div class="notice notice-warning wc-pandapay-request-api-notice is-dismissible"><p><?php esc_html_e( 'New Feature! Panda Pay now supports Google Payment Request. Your customers can now use mobile phones with supported browsers such as Chrome to make purchases easier and faster.', 'woocommerce-gateway-pandapay' ); ?></p></div>
-
-				<script type="application/javascript">
-					jQuery( '.wc-pandapay-request-api-notice' ).on( 'click', '.notice-dismiss', function() {
-						var data = {
-							action: 'pandapay_dismiss_request_api_notice'
-						};
-
-						jQuery.post( '<?php echo admin_url( 'admin-ajax.php' ); ?>', data );
-					});
-				</script>
-
-				<?php
-			}
 
 			foreach ( (array) $this->notices as $notice_key => $notice ) {
 				echo "<div class='" . esc_attr( $notice['class'] ) . "'><p>";
