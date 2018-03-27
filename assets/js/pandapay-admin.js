@@ -4,10 +4,12 @@ var algoliaApiKey = null,
 
 var disableEIN = function() {
   destinationEIN.attr('disabled','disabled');
+  destinationEINDescription.hide();
 }
 
 var enableEIN = function() {
   destinationEIN.removeAttr('disabled');
+  destinationEINDescription.show();
 }
 
 var request = function(url, type, headers) {
