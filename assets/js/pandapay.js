@@ -57,9 +57,6 @@ jQuery( document ).ready(function() {
     if (!initialized) {
       initialized = Panda.init(wc_pandapay_params.key, 'panda_cc_form');
     }
-    // if (!jQuery('#token-input').length) {
-    //   jQuery('.woocommerce-billing-fields').append('<p class="form-row form-row-wide address-field validate-required validate-postcode woocommerce-validated" id="billing_token_field" data-priority="90" data-o_class="form-row form-row-wide address-field validate-required validate-postcode"><label>Source Token</label><input id="token-input" disabled="disabled"></p>');
-    // }
 
     updatePandaFields();
     submitPandaForm();

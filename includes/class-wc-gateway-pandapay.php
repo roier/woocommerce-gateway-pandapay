@@ -93,9 +93,9 @@ class WC_Gateway_Pandapay extends WC_Payment_Gateway_CC {
 	public function __construct() {
 		$this->id                   = 'pandapay';
 		$this->method_title         = __( 'Panda Pay', 'woocommerce-gateway-pandapay' );
-		$this->method_description   = sprintf( __( 'Panda Pay works by adding credit card fields on the checkout and then sending the details to Panda Pay for verification. <a href="%1$s" target="_blank">Sign up</a> for a Panda Pay account, and <a href="%2$s" target="_blank">get your Panda Pay account keys</a>.', 'woocommerce-gateway-pandapay' ), 'https://dashboard.stripe.com/register', 'https://dashboard.stripe.com/account/apikeys' );
+		$this->method_description   = __( 'Panda Pay works by adding credit card fields on the checkout and then sending the details to Panda Pay for verification.', 'woocommerce-gateway-pandapay');
 		$this->has_fields           = true;
-		$this->view_transaction_url = 'https://dashboard.stripe.com/payments/%s';
+		$this->view_transaction_url = 'https://dashboard.pandapay.io/dashboard';
 		$this->supports             = array(
 			'subscriptions',
 			'products',
@@ -134,6 +134,7 @@ class WC_Gateway_Pandapay extends WC_Payment_Gateway_CC {
 		$this->secret_key              = $this->testmode ? $this->get_option( 'test_secret_key' ) : $this->get_option( 'secret_key' );
 		$this->publishable_key         = $this->testmode ? $this->get_option( 'test_publishable_key' ) : $this->get_option( 'publishable_key' );
 		$this->destination_ein				 = $this->get_option( 'destination_ein' );
+		$this->platform_fee				 		 = $this->get_option( 'platform_fee' );
 		$this->bitcoin                 = 'USD' === strtoupper( get_woocommerce_currency() ) && 'yes' === $this->get_option( 'pandapay_bitcoin' );
 		$this->logging                 = 'yes' === $this->get_option( 'logging' );
 
@@ -362,9 +363,7 @@ class WC_Gateway_Pandapay extends WC_Payment_Gateway_CC {
 			return;
 		}
 
-		$suffix = defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ? '' : '.min';
-
-		wp_enqueue_script( 'woocommerce_pandapay_admin', plugins_url( 'assets/js/stripe-admin' . $suffix . '.js', WC_PANDAPAY_MAIN_FILE ), array(), WC_PANDAPAY_VERSION, true );
+		wp_enqueue_script( 'woocommerce_pandapay_admin', plugins_url( 'assets/js/pandapay-admin.js', WC_PANDAPAY_MAIN_FILE ), array(), WC_PANDAPAY_VERSION, true );
 
 		$pandapay_admin_params = array(
 			'localized_messages' => array(
@@ -571,21 +570,6 @@ class WC_Gateway_Pandapay extends WC_Payment_Gateway_CC {
 		);
 	}
 
-	public function request_payment( $url, $secret_key, $source, $amount, $billing_email ) {
-		$ch = curl_init();
-		curl_setopt($ch, CURLOPT_URL, $url);
-		curl_setopt($ch, CURLOPT_POST, 1);
-		$post_fields = "amount=".(intval($amount) * 100)."&currency=usd&source=".$source."&receipt_email=".$billing_email."&platform_fee=100&destination_ein=12-3456789";
-		curl_setopt($ch, CURLOPT_USERPWD, $secret_key);
-		curl_setopt($ch, CURLOPT_POSTFIELDS, $post_fields);
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-
-		$response = json_decode(curl_exec($ch));
-		curl_close($ch);
-		$this->log( sprintf( __( 'request_payment: %s', 'woocommerce-gateway-pandapay' ), json_encode(array($url, $post_fields)) ) );
-		return $response;
-	}
-
 	/**
 	 * Process the payment
 	 *
@@ -613,8 +597,8 @@ class WC_Gateway_Pandapay extends WC_Payment_Gateway_CC {
 					'source'					=> $source,
 					'currency'				=> get_woocommerce_currency(),
 					'receipt_email' 	=> $_POST['billing_email'],
-					'platform_fee'  	=> '100',
-					'destination_ein' => '12-3456789',
+					'platform_fee'  	=> $this->platform_fee,
+					'destination_ein' => $this->destination_ein,
 				), 'donations' );
 
 				$this->log( sprintf( __( 'Donation Response: %s', 'woocommerce-gateway-pandapay' ), json_encode($response) ) );
@@ -637,7 +621,7 @@ class WC_Gateway_Pandapay extends WC_Payment_Gateway_CC {
 			WC()->cart->empty_cart();
 
 			// remove when ready
-			// do_action( 'wc_gateway_pandapay_process_payment', $response, $order );
+			do_action( 'wc_gateway_pandapay_process_payment', $response, $order );
 
 			// Return thank you page redirect.
 			return array(

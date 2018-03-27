@@ -45,6 +45,52 @@ class WC_Pandapay_API {
 	}
 
 	/**
+	 * Set Destination EIN.
+	 * @param string $destination_ein
+	 */
+	public static function set_destination_ein( $destination_ein ) {
+		self::$destination_ein = $destination_ein;
+	}
+
+	/**
+	 * Get Destination EIN.
+	 * @return string
+	 */
+	public static function get_destination_ein() {
+		if ( ! self::$destination_ein ) {
+			$options = get_option( 'woocommerce_pandapay_settings' );
+
+			if ( $options['destination_ein'] ) {
+				self::set_destination_ein( $options['destination_ein'] );
+			}
+		}
+		return self::$destination_ein;
+	}
+
+	/**
+	 * Set Platform Fee.
+	 * @param string $platform_fee
+	 */
+	public static function set_platform_fee( $platform_fee ) {
+		self::$platform_fee = $platform_fee;
+	}
+
+	/**
+	 * Get Platform Fee.
+	 * @return string
+	 */
+	public static function get_platform_fee() {
+		if ( ! self::$platform_fee ) {
+			$options = get_option( 'woocommerce_pandapay_settings' );
+
+			if ( $options['platform_fee'] ) {
+				self::set_platform_fee( $options['platform_fee'] );
+			}
+		}
+		return self::$platform_fee;
+	}
+
+	/**
 	 * Send the request to Panda Pay's API
 	 *
 	 * @param array $request

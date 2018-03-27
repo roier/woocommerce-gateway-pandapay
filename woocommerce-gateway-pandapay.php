@@ -470,7 +470,7 @@ if ( ! class_exists( 'WC_Pandapay' ) ) :
 					$this->log( sprintf( __( 'capture_payment grants order total: %s', 'woocommerce-gateway-pandapay' ), $order->get_total() ) );
 					$result = WC_Pandapay_API::request( array(
 						'amount'   => $order->get_total() * 100,
-						'destination_ein' => '12-3456789'
+						'destination_ein' => WC_Pandapay_API::get_destination_ein()
 					), 'donations/' . $charge . '/grants' );
 
 					$this->log( sprintf( __( 'capture_payment grants result: %s', 'woocommerce-gateway-pandapay' ), json_encode($result) ) );
